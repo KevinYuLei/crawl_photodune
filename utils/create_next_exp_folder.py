@@ -1,6 +1,22 @@
 import os
 
-def create_next_exp_folder(base_path):
+def create_next_exp_folder(base_path: str):
+    """
+    创建下一个可用的实验文件夹，命名格式为 'exp{i}'，其中 i 从 0 开始递增。
+    此方法检查指定的基本路径下是否存在名为 'exp{i}' 的文件夹。
+    如果存在，i 自增，直到找到不存在的文件夹，然后创建该文件夹。
+
+    Args:
+        base_path (str): 实验文件夹所在的基础路径。
+
+    Returns:
+        str: 新创建的实验文件夹的路径。
+
+    Examples:
+        >>> create_next_exp_folder('/path/to/run')
+        Created folder: /path/to/run/exp0!
+        '/path/to/run/exp0'
+    """
     i = 0
     # 循环检查 exp{i} 文件夹是否存在
     while True:

@@ -9,31 +9,29 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver.common.keys import Keys
 
-from utils import scroll_to_bottom
+from utils.utils import scroll_to_bottom
 
 
-def get_page_urls(first_page_url):
-    # 设置Chrome浏览器的选项，确保浏览器不会显示自动化工具控制的提示信息
-    options = webdriver.ChromeOptions()
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option('useAutomationExtension', False)
-    options.add_argument('--disable-blink-features=AutomationControlled')
-    options.add_argument('--disable-gpu')  # 禁用GPU加速（可选）
-    options.add_argument('--start-maximized')  # 启动时最大化窗口
+def get_page_urls(driver:webdriver.Chrome, first_page_url: str):
+    """
+    _获取搜索页面的所有分页URL。_
 
-    # 启动Chrome浏览器，使用上述配置
-    driver = webdriver.Chrome(options=options)
+    该方法从给定的第一页URL开始，利用Selenium滚动到底部并提取分页链接，生成从第一页到最后一页的所有分页URL。
 
-    # 通过Chrome DevTools Protocol (CDP) 禁用webdriver特征检测，使浏览器看起来像是由人操作的
-    driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
-        'source': '''
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => undefined
-            })
-        '''
-    })
+    Args:
+        driver (webdriver.Chrome): 已初始化的Selenium Chrome浏览器驱动。
+        first_page_url (str): 搜索结果第一页的URL。
 
-    # 访问bing/images页面
+    Returns:
+        list: 包含从第一页到最后一页所有分页的URL列表。
+
+    Examples:
+        >>> driver = webdriver.Chrome()
+        >>> urls = get_page_urls(driver, 'https://photodune.com/search?page=1')
+        >>> print(urls)
+        ['https://photodune.com/search?page=1', 'https://photodune.com/search?page=2', ...]
+    """
+    # photodune搜索页面的第一页网址
     driver.get(first_page_url)
     
     scroll_to_bottom(driver)
@@ -67,6 +65,7 @@ if __name__ == '__main__':
     # 需要爬取的photodune页面的第一页网址
     first_page_url = "https://photodune.net/search/feet%20on%20desk#content"
     
+
     page_urls = get_page_urls(first_page_url)
     for u in page_urls:
         print(u)

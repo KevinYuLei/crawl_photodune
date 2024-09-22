@@ -8,31 +8,33 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
 from selenium.webdriver.common.keys import Keys
 
-from utils import scroll_to_bottom
+from utils.utils import scroll_to_bottom
 
 
-def fetch_dynamic_content(url, save_file_path):
-    # 设置Chrome浏览器的选项，确保浏览器不会显示自动化工具控制的提示信息
-    options = webdriver.ChromeOptions()
-    options.add_experimental_option("excludeSwitches", ["enable-automation"])
-    options.add_experimental_option('useAutomationExtension', False)
-    options.add_argument('--disable-blink-features=AutomationControlled')
-    options.add_argument('--disable-gpu')  # 禁用GPU加速（可选）
-    options.add_argument('--start-maximized')  # 启动时最大化窗口
+def fetch_dynamic_content(driver: webdriver.Chrome, url: str, save_file_path: str, fetch_times: int = 0):
+    """
+    _从动态加载的网页中获取图片 URL，并将其保存到指定文件。_
 
-    # 启动Chrome浏览器，使用上述配置
-    driver = webdriver.Chrome(options=options)
+    该方法使用 Selenium 访问一个动态加载图片的网页，获取指定 CSS 选择器下的图片 URL，并将这些 URL 保存到文件中。
+    它通过滚动页面、刷新和等待元素加载来确保可以抓取到所有动态内容。
 
-    # 通过Chrome DevTools Protocol (CDP) 禁用webdriver特征检测，使浏览器看起来像是由人操作的
-    driver.execute_cdp_cmd('Page.addScriptToEvaluateOnNewDocument', {
-        'source': '''
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => undefined
-            })
-        '''
-    })
+    Args:
+        driver (webdriver.Chrome): 已初始化的 Selenium Chrome 浏览器驱动。
+        url (str): 目标网页的 URL。
+        save_file_path (str): 保存抓取到的图片 URL 的文件路径。
+        fetch_times (int, optional): 爬取次数，用于记录当前爬取的轮数，默认为0。
 
-    # 访问bing/images页面
+    Returns:
+        tuple: 
+            - list: 包含抓取到的图片 URL 的列表。
+            - int: 当前轮次抓取到的图片 URL 数量。
+
+    Examples:
+        >>> driver = webdriver.Chrome()
+        >>> urls, count = fetch_dynamic_content(driver, 'https://www.bing.com/images', './img_urls.txt')
+        第1次爬取, 共爬取20条img_url, 已成功保存到 img_urls.txt 文件中
+    """
+    # 访问photodune页面
     driver.get(url)
 
     # 定位页面中用于展示图片的动态元素的CSS选择器
@@ -56,8 +58,7 @@ def fetch_dynamic_content(url, save_file_path):
     scroll_to_bottom(driver)
 
     urls_list = []
-    count = 1
-    failed_count = 0
+    count = 0
 
     parent_element = driver.find_element(By.CSS_SELECTOR, element_selector)
     img_divs = parent_element.find_elements(By.XPATH, './div')
@@ -65,81 +66,28 @@ def fetch_dynamic_content(url, save_file_path):
     # 获取保存路径下的文件名称
     save_filename = os.path.basename(save_file_path)
     # 将收集的HTML内容保存到txt文件中
-    with open(save_file_path, 'w', encoding='utf-8') as file:
+    with open(save_file_path, 'a+', encoding='utf-8') as file:
         for img_div in img_divs:
-            # 写到这里
-            
-            
-            
-            li_elements = img_div.find_elements(By.XPATH, './li')
-            for li_element in li_elements:
-                a_element = li_element.find_element(
-                    By.XPATH, "./div/div[@class='imgpt']/a")
-                actions.move_to_element(a_element).click().perform()
+            img_element = img_div.find_element(By.XPATH, './div/a/img')
+            img_url = str(img_element.get_attribute('srcset'))
+            file.write(img_url+'\n')
 
-                time.sleep(0.5)
-                new_url = driver.current_url
-                driver.execute_script(f"window.open('{new_url}', '_blank');")
-                # 获取所有打开的标签页句柄
-                tabs = driver.window_handles
-                # 切换到新标签页
-                driver.switch_to.window(tabs[-1])
-                time.sleep(0.01)
-                actions.send_keys(Keys.F5).perform()
-                
-                
-                img_element_selector = "#mainImageWindow > div.mainImage.wide.notbkg.current.curimgonview > div > div > div > img"
-                try:
-                    actions.send_keys(Keys.F5).perform()
-                    WebDriverWait(driver, 10).until(
-                        EC.presence_of_element_located(
-                            (By.CSS_SELECTOR, img_element_selector))
-                    )
-                except (NoSuchElementException, TimeoutException) as e:
-                    print(f"捕获到异常: {e}")
-                    print(f"第{count}条图片数据获取失败.")
-                    count += 1
-                    failed_count += 1
-                    
-                    # 关闭当前标签页
-                    driver.close()
+            urls_list.append(img_url)
+            count += 1
 
-                    # 切换回原始标签页
-                    driver.switch_to.window(tabs[0])
-                    actions.send_keys(Keys.ESCAPE).perform()
-                    time.sleep(0.01)
-                    continue
-
-
-                img_element = driver.find_element(
-                    By.CSS_SELECTOR, img_element_selector)
-                img_src = img_element.get_attribute("src")
-                urls_list.append(img_src)
-
-                # 关闭当前标签页
-                driver.close()
-
-                # 切换回原始标签页
-                driver.switch_to.window(tabs[0])
-                actions.send_keys(Keys.ESCAPE).perform()
-                time.sleep(0.01)
-                file.write(img_src+'\n')
-                print(f'已成功读取第{count}条图片数据: {img_src}')
-                count += 1
-        # 关闭浏览器，释放资源
-        driver.quit()
-        print(f"Urls内容已保存到 {save_filename} 文件中。")
-        print(f"共爬取{count}条数据，其中爬取失败: {failed_count}条，存储成功：{len(urls_list)}条")
+    print(f"第{fetch_times+1}次爬取, 共爬取{count}条img_url, 已成功保存到 {save_filename} 文件中")
+    return urls_list, count
 
 
 if __name__ == '__main__':
-    bing_img_url = "https://cn.bing.com/images/search?q=smartphone+on+the+desk&qs=n&form=QBIR&sp=-1&lq=0&pq=smartphone%20on%20the%20desk&sc=7-22&cvid=FB071787232E4B959DF4D4F6EF0F3F1B&ghsh=0&ghacc=0&first=1&cw=1903&ch=653"
+    photodune_url = "https://photodune.net/search/feet%20on%20desk#content"
 
     cwd = os.getcwd()
     runs_folder = os.path.join(cwd, 'runs')
 
-    html_filename = 'image_urls.txt'
-    html_file_path = os.path.join(runs_folder, html_filename)
+    urlset_filename = 'image_urls_srcsets.txt'
+    urlset_file_path = os.path.join(runs_folder, urlset_filename)
 
     # 调用函数，获取页面滚动过程中收集的所有HTML内容
-    fetch_dynamic_content(bing_img_url, html_file_path)
+    urls_list, count = fetch_dynamic_content(photodune_url, urlset_file_path)
+    pass
